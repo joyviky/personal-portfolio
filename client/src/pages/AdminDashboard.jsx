@@ -119,6 +119,8 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
           bio: newData.hero.bio,
           roles: newData.hero.roles,
           socials: newData.socials,
+          avatar: newData.hero.avatar,
+          backgroundImage: newData.hero.backgroundImage,
         });
         flashSave('Profile saved to MongoDB Atlas ✅');
       } catch (err) {
@@ -209,6 +211,7 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
           githubLink: p.githubLink || '',
           featured: String(p.featured || false),
           status: p.status || 'Completed',
+          image: p.image || '',
         });
         flashSave('Project updated in MongoDB Atlas ✅');
       } catch (err) {

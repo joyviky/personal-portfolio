@@ -46,6 +46,11 @@ const updateProfile = async (req, res) => {
     if (headerText) profile.headerText = headerText;
     if (req.file) {
       profile.avatar = req.file.secure_url || req.file.path;
+    } else if (req.body.avatar !== undefined) {
+      profile.avatar = req.body.avatar;
+    }
+    if (req.body.backgroundImage !== undefined) {
+      profile.backgroundImage = req.body.backgroundImage;
     }
 
     const savedProfile = await profile.save();

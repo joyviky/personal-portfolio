@@ -26,9 +26,9 @@ const createProject = async (req, res) => {
       tags: tags ? tags.split(',').map(t => t.trim()) : [],
       liveLink: liveLink || '',
       githubLink: githubLink || '',
-      image: req.file ? (req.file.secure_url || req.file.path) : '',
+      image: req.file ? (req.file.secure_url || req.file.path) : (req.body.image || ''),
       featured: featured === 'true',
-      status: status || 'completed',
+      status: status || 'Completed',
     });
 
     const savedProject = await project.save();
@@ -60,6 +60,7 @@ const updateProject = async (req, res) => {
     if (featured !== undefined) project.featured = featured === 'true';
     if (status) project.status = status;
     if (req.file) project.image = req.file.secure_url || req.file.path;
+    else if (req.body.image !== undefined) project.image = req.body.image;
 
     const updatedProject = await project.save();
     console.log('✅ Project updated in MongoDB Atlas:', updatedProject.title);
