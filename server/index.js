@@ -6,6 +6,9 @@ const connectDB = require('./config/database');
 
 const app = express();
 
+// Trust proxy - important for accurate IP tracking
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json({ limit: '50mb' }));

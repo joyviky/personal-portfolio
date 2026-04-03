@@ -25,6 +25,7 @@ import {
 import BentoCard from '../components/BentoCard';
 import CircularProgress from '../components/CircularProgress';
 import { useTypingEffect } from '../components/TypingAnimation';
+import api from '../services/api';
 
 const hexToRgba = (hex, alpha = 1) => {
   const normalized = hex.replace('#', '');
@@ -36,19 +37,86 @@ const hexToRgba = (hex, alpha = 1) => {
 };
 
 const PublicView = ({ data, onLoginClick }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const trackingDone = React.useRef(false); // Prevent duplicate tracking
+  
   useEffect(() => {
-    // Track visitor
-    fetch('http://localhost:5001/api/visitors/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: window.location.pathname })
-    }).catch(() => console.log('Tracking failed'));
-  }, []);
-  const typedRole = useTypingEffect(data.hero.roles);
-  const themeColors = data.theme || { primary: '#6366f1', secondary: '#0a0a0c', accent: '#f59e0b' };
+    // Full page loading until all data arrives from MongoDB Atlas
+    if (data && data.profile && data.hero && data.skills && data.projects) {
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+    
+    // Fallback: show portfolio after 12 seconds even if data hasn't fully loaded
+    const timeoutTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 12000);
+    
+    return () => clearTimeout(timeoutTimer);
+  }, [data]);
+  
+  useEffect(() => {
+    // Track visitor only after page finishes loading
+    if (!isLoading && !trackingDone.current) {
+      trackingDone.current = true;
+      
+      const visitorData = {
+        page: window.location.pathname,
+        userAgent: navigator.userAgent,
+        referrer: document.referrer || 'Direct'
+      };
+      
+      api.post('/visitors/track', visitorData)
+        .then(response => {
+          console.log('✅ Visitor tracked:', {
+            isDuplicate: response.data.isDuplicate,
+            visitorIP: response.data.visitorIP,
+            timestamp: response.data.timestamp
+          });
+        })
+        .catch(error => console.log('⚠️ Tracking failed:', error.message));
+    }
+  }, [isLoading]);
+  
+  const typedRole = useTypingEffect(data?.hero?.roles || []);
+  const themeColors = data?.theme || { primary: '#6366f1', secondary: '#0a0a0c', accent: '#f59e0b' };
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
+
+  // Full Page Loading Screen
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center font-sans" style={{
+        backgroundColor: data?.theme?.secondary || '#0a0a0c',
+      }}>
+        <div className="flex flex-col items-center justify-center gap-6">
+          {/* Spinner */}
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-500 border-r-indigo-500/50 animate-spin"></div>
+            <div className="absolute inset-2 rounded-full border-4 border-transparent border-b-amber-500 border-l-amber-500/50 animate-spin" style={{
+              animationDirection: 'reverse',
+              animationDuration: '2s'
+            }}></div>
+          </div>
+          
+          {/* Loading Message */}
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white mb-2">Fetching your portfolio data...</h2>
+            <p className="text-zinc-400 text-sm">Please wait.</p>
+          </div>
+          
+          {/* Animated dots */}
+          <div className="flex gap-1 mt-4">
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleContactSubmit = async (e) => {
     e.preventDefault();
@@ -58,24 +126,21 @@ const PublicView = ({ data, onLoginClick }) => {
       return;
     }
 
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setSubmitStatus({ type: 'error', text: 'Please enter a valid email address' });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('http://localhost:5001/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        setSubmitStatus({ type: 'success', text: 'Message sent successfully! We will get back to you soon.' });
-        setFormData({ name: '', email: '', message: '' });
-        setTimeout(() => setSubmitStatus(null), 5000);
-      } else {
-        setSubmitStatus({ type: 'error', text: 'Failed to send message. Please try again.' });
-      }
-    } catch {
-      setSubmitStatus({ type: 'error', text: 'Error sending message. Please try again.' });
+      await api.post('/messages', formData);
+      setSubmitStatus({ type: 'success', text: 'Message sent successfully! We will get back to you soon.' });
+      setFormData({ name: '', email: '', message: '' });
+      setTimeout(() => setSubmitStatus(null), 5000);
+    } catch (error) {
+      setSubmitStatus({ type: 'error', text: error.response?.data?.message || 'Failed to send message. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -151,13 +216,8 @@ const PublicView = ({ data, onLoginClick }) => {
         <section id="home" className="flex flex-col items-center text-center mb-32 scroll-mt-40">
           <div className="relative mb-8 group cursor-default">
             <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 opacity-30 blur-lg group-hover:opacity-60 transition duration-1000"></div>
-            <div className="relative w-28 h-28 rounded-full border-2 border-white/10 overflow-hidden shadow-lg bg-[#0a0a0c]">
+            <div className="relative w-28 h-28 rounded-full border-4 border-indigo-500/40 overflow-hidden shadow-2xl bg-[#0a0a0c] flex-shrink-0">
               <img src={data.hero.avatar} alt="Vignesh" className="w-full h-full object-cover" />
-              {data.hero.backgroundImage && (
-                <div className="absolute inset-0 opacity-20 pointer-events-none">
-                  <img src={data.hero.backgroundImage} alt="bg" className="w-full h-full object-cover" />
-                </div>
-              )}
             </div>
             <div
               className="absolute -bottom-2 -right-2 text-white text-xs px-3 py-1 rounded-full border-2 border-[#030303] flex items-center gap-1 shadow-lg"

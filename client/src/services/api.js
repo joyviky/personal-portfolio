@@ -7,6 +7,7 @@ if (import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.endsWith('/api
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 15000, // 15 second timeout for all requests
 });
 
 // Add token to every request
@@ -18,6 +19,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Add error response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authService = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   getCurrentAdmin: () => api.get('/auth/me'),
@@ -27,6 +39,20 @@ export const profileService = {
   getProfile: () => api.get('/profile'),
   updateProfile: (data) => api.put('/profile', data),
   uploadResume: (file) => {
+    // Validate file before upload
+    if (!file) {
+      throw new Error('No file selected');
+    }
+    
+    const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx|txt)$/i)) {
+      throw new Error('Only PDF, Word, and text files are allowed');
+    }
+    
+    if (file.size > 10 * 1024 * 1024) { // 10MB max
+      throw new Error('File size must be less than 10MB');
+    }
+    
     const formData = new FormData();
     formData.append('resume', file);
     return api.post('/profile/resume', formData, {

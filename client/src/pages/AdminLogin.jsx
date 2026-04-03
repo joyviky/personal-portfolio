@@ -14,7 +14,7 @@ const AdminLogin = ({ onLogin, onCancel }) => {
       const token = response.data.token;
       localStorage.setItem('token', token);
       onLogin();
-    } catch (err) {
+    } catch {
       setError('Incorrect password. Please try again.');
       setPassword(''); // Clear the password field
     }

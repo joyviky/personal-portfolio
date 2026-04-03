@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import './index.css';
 import PublicView from './pages/PublicView';
 import AdminLogin from './pages/AdminLogin';
@@ -21,6 +21,7 @@ const initialData = {
     avatar: "https://ui-avatars.com/api/?name=Vignesh&background=4f46e5&color=fff&size=256&font-size=0.4"
   },
   leetcode: {
+    username: "Joy_boy485",
     solved: 124,
     easy: 55,
     medium: 6,
@@ -55,7 +56,6 @@ const initialData = {
 export default function App() {
   const [view, setView] = useState('portfolio');
   const [portfolioData, setPortfolioData] = useState(initialData);
-  const [isLoaded, setIsLoaded] = useState(false);
 
   // ─── Load ALL data from MongoDB Atlas on mount ───
   const loadPortfolio = async () => {
@@ -134,32 +134,34 @@ export default function App() {
         console.warn('Could not fetch projects from MongoDB Atlas:', err.message);
       }
 
-      // 5. Load live LeetCode stats
+      // 5. Load live LeetCode stats (use username from profile or env or Joy_boy485)
       try {
-        const response = await leetcodeService.getStats('Joy_boy485');
-        const stats = response.data;
-        baseData.leetcode = {
-          ...baseData.leetcode,
-          solved: stats.totalSolved,
-          easy: stats.easy,
-          medium: stats.medium,
-          hard: stats.hard,
-          acceptanceRate: stats.acceptanceRate,
-          ranking: stats.ranking,
-          topPercentage: stats.topPercentage,
-          languages: stats.languages,
-          leetcodeLink: `https://leetcode.com/u/Joy_boy485`,
-        };
+        const leetcodeUsername = baseData.leetcode?.username || import.meta.env.VITE_LEETCODE_USERNAME || 'Joy_boy485';
+        if (leetcodeUsername) {
+          const response = await leetcodeService.getStats(leetcodeUsername);
+          const stats = response.data;
+          baseData.leetcode = {
+            ...baseData.leetcode,
+            username: leetcodeUsername,
+            solved: stats.totalSolved,
+            easy: stats.easy,
+            medium: stats.medium,
+            hard: stats.hard,
+            acceptanceRate: stats.acceptanceRate,
+            ranking: stats.ranking,
+            topPercentage: stats.topPercentage,
+            languages: stats.languages,
+            leetcodeLink: `https://leetcode.com/u/${leetcodeUsername}`,
+          };
+        }
       } catch (err) {
         console.warn('Could not fetch LeetCode stats:', err.message);
       }
 
       setPortfolioData(baseData);
-      setIsLoaded(true);
       console.log('✅ All data loaded from MongoDB Atlas');
     } catch (error) {
       console.error('❌ Error loading portfolio:', error);
-      setIsLoaded(true);
     }
   };
 
@@ -180,6 +182,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPortfolio();
   }, []);
 

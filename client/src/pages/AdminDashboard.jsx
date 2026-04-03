@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { leetcodeService, skillService, projectService, profileService, portfolioService } from '../services/api';
+import api from '../services/api';
 
 const AdminDashboard = ({ data, updateData, onLogout }) => {
   const [activeTab, setActiveTab] = useState('hero');
@@ -41,7 +42,13 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
   };
 
   const [themeColors, setThemeColors] = useState(() => (data.theme ? data.theme : defaultTheme));
-  const [visitorStats, setVisitorStats] = useState({ total: 0, today: 0, unique: 0 });
+  const [visitorStats, setVisitorStats] = useState({ 
+    total: 0, 
+    today: 0, 
+    unique: 0,
+    todayUnique: 0,
+    hasData: false 
+  });
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
 
   // ─── Helper: show brief save notification ───
@@ -68,13 +75,15 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
     setShowMobileTabMenu(false);
   };
 
-  const showNextTab = () => {
+  const showNextTab = (e) => {
+    if (e) e.preventDefault();
     const idx = getCurrentTabIndex();
     const next = tabItems[(idx + 1) % tabItems.length];
     setActiveTab(next.id);
   };
 
-  const showPrevTab = () => {
+  const showPrevTab = (e) => {
+    if (e) e.preventDefault();
     const idx = getCurrentTabIndex();
     const prev = tabItems[(idx - 1 + tabItems.length) % tabItems.length];
     setActiveTab(prev.id);
@@ -536,15 +545,31 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
     if (activeTab === 'analytics') {
       const fetchStats = async () => {
         try {
-          const response = await fetch('http://localhost:5001/api/visitors/stats');
-          const stats = await response.json();
-          setVisitorStats(stats);
+          const response = await api.get('/visitors/stats');
+          const result = response.data;
+          
+          // Handle new response format
+          if (result.data) {
+            setVisitorStats({
+              total: result.data.total,
+              today: result.data.today,
+              unique: result.data.unique,
+              todayUnique: result.data.todayUnique,
+              hasData: result.data.hasData
+            });
+          } else {
+            // Fallback for older API
+            setVisitorStats(result || { total: 0, today: 0, unique: 0, todayUnique: 0, hasData: false });
+          }
         } catch (error) {
-          console.error('Failed to fetch visitor stats:', error);
-          setVisitorStats({ total: 0, today: 0, unique: 0 });
+          console.warn('Failed to fetch visitor stats:', error.message);
+          setVisitorStats({ total: 0, today: 0, unique: 0, todayUnique: 0, hasData: false });
         }
       };
       fetchStats();
+      // Refresh stats every 10 seconds when on analytics tab
+      const interval = setInterval(fetchStats, 10000);
+      return () => clearInterval(interval);
     }
   }, [activeTab]);
 
@@ -560,6 +585,7 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
         ...data,
         leetcode: {
           ...data.leetcode,
+          username: leetcodeUsername,
           solved: stats.totalSolved,
           easy: stats.easy,
           medium: stats.medium,
@@ -571,10 +597,11 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
           leetcodeLink: `https://leetcode.com/u/${leetcodeUsername}`
         }
       });
-      alert('LeetCode stats updated successfully!');
+      setLeetcodeUsername('');
+      alert(`LeetCode stats updated successfully for ${leetcodeUsername}!`);
     } catch (error) {
       console.error('Error fetching LeetCode stats:', error);
-      alert('Failed to fetch LeetCode stats. Please check the username and try again.');
+      alert(`Failed to fetch LeetCode stats for '${leetcodeUsername}'. Please verify the username is correct (include exact casing).`);
     }
   };
 
@@ -616,22 +643,25 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
             </div>
             <div className="md:hidden flex items-center gap-2">
               <button
-                onClick={showPrevTab}
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-200 border-2 border-blue-400 hover:border-blue-300 flex items-center justify-center"
+                onClick={(e) => { e.preventDefault(); showPrevTab(e); }}
+                type="button"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-200 border-2 border-blue-400 hover:border-blue-300 flex items-center justify-center cursor-pointer"
                 title="Previous Tab"
               >
                 ◀
               </button>
               <button
                 onClick={() => setShowMobileTabMenu(!showMobileTabMenu)}
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-200 border-2 border-purple-400 hover:border-purple-300 flex items-center justify-center"
+                type="button"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-200 border-2 border-purple-400 hover:border-purple-300 flex items-center justify-center cursor-pointer"
                 title={showMobileTabMenu ? "Close Menu" : "Open Menu"}
               >
                 {showMobileTabMenu ? '✕' : '☰'}
               </button>
               <button
-                onClick={showNextTab}
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-200 border-2 border-green-400 hover:border-green-300 flex items-center justify-center"
+                onClick={(e) => { e.preventDefault(); showNextTab(e); }}
+                type="button"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-200 border-2 border-green-400 hover:border-green-300 flex items-center justify-center cursor-pointer"
                 title="Next Tab"
               >
                 ▶
@@ -655,7 +685,7 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
                     theme: data.theme,
                   });
                   flashSave('All data saved to MongoDB Atlas ✅');
-                } catch (err) {
+                } catch {
                   flashSave('⚠️ Save failed - check connection');
                 } finally {
                   setIsSaving(false);
@@ -710,6 +740,20 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
                     <label className="block text-xs font-bold uppercase mb-2 text-zinc-500">Background Image URL (Hero Section)</label>
                     <input name="backgroundImage" value={data.hero.backgroundImage || ''} onChange={handleHeroChange} placeholder="https://example.com/background.jpg" className="w-full rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors bg-[#030303] border border-white/10 text-white" />
                     {data.hero.backgroundImage && <div className="mt-3 w-full h-32 rounded-xl overflow-hidden border border-indigo-500/30"><img src={data.hero.backgroundImage} alt="Background Preview" className="w-full h-full object-cover" /></div>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase mb-2 text-zinc-500">LeetCode Username</label>
+                    <input 
+                      type="text"
+                      value={data.leetcode?.username || ''} 
+                      onChange={(e) => {
+                        const newData = {...data, leetcode: {...data.leetcode, username: e.target.value}};
+                        updateData(newData);
+                      }}
+                      placeholder="e.g., Joy_boy0485"
+                      className="w-full rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors bg-[#030303] border border-white/10 text-white" 
+                    />
+                    <p className="text-xs text-zinc-500 mt-1">Your LeetCode profile will be linked with this username</p>
                   </div>
                 </div>
               </div>
@@ -1236,35 +1280,99 @@ const AdminDashboard = ({ data, updateData, onLogout }) => {
 
             {activeTab === 'analytics' && (
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-white mb-8">Portfolio Analytics</h3>
+                <h3 className="text-xl font-bold text-white mb-8">Portfolio Analytics & Visitor Tracking</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="border rounded-3xl p-8 shadow-sm bg-[#0a0a0c] border-white/5">
-                    <div className="flex items-center gap-4 mb-4">
-                      <Eye className="text-indigo-400" size={24} />
-                      <h4 className="text-lg font-semibold text-white">Total Visitors</h4>
+                {!visitorStats.hasData ? (
+                  <div className="border rounded-3xl p-12 shadow-sm bg-[#0a0a0c] border-white/5 text-center">
+                    <div className="flex justify-center mb-4">
+                      <Eye className="text-zinc-600" size={48} />
                     </div>
-                    <p className="text-3xl font-bold text-indigo-400">{visitorStats.total.toLocaleString()}</p>
-                    <p className="text-sm text-zinc-500 mt-2">All time visitors</p>
+                    <h4 className="text-lg font-semibold text-white mb-2">No visitor data yet</h4>
+                    <p className="text-zinc-400 mb-4">Stats will update when users visit your portfolio site.</p>
+                    <p className="text-sm text-zinc-500">Visit your live portfolio to start tracking visitors. The system will count each unique IP address only once per 5 minutes to ensure accurate statistics.</p>
                   </div>
-                  
-                  <div className="border rounded-3xl p-8 shadow-sm bg-[#0a0a0c] border-white/5">
-                    <div className="flex items-center gap-4 mb-4">
-                      <Activity className="text-green-400" size={24} />
-                      <h4 className="text-lg font-semibold text-white">Today's Visitors</h4>
-                    </div>
-                    <p className="text-3xl font-bold text-green-400">{visitorStats.today}</p>
-                    <p className="text-sm text-zinc-500 mt-2">Visitors today</p>
-                  </div>
+                ) : (
+                  <>
+                    {/* Visitor Stats Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* All-Time Total */}
+                      <div className="border rounded-3xl p-8 shadow-sm bg-[#0a0a0c] border-white/5">
+                        <div className="flex items-center gap-4 mb-4">
+                          <Eye className="text-indigo-400" size={24} />
+                          <h4 className="text-lg font-semibold text-white">Total Visits</h4>
+                        </div>
+                        <p className="text-3xl font-bold text-indigo-400">{visitorStats.total.toLocaleString()}</p>
+                        <p className="text-sm text-zinc-500 mt-2">All-time visits</p>
+                      </div>
+                      
+                      {/* Today's Visitors */}
+                      <div className="border rounded-3xl p-8 shadow-sm bg-[#0a0a0c] border-white/5">
+                        <div className="flex items-center gap-4 mb-4">
+                          <Activity className="text-green-400" size={24} />
+                          <h4 className="text-lg font-semibold text-white">Today's Visits</h4>
+                        </div>
+                        <p className="text-3xl font-bold text-green-400">{visitorStats.today}</p>
+                        <p className="text-sm text-zinc-500 mt-2">Last 24 hours</p>
+                      </div>
 
-                  <div className="border rounded-3xl p-8 shadow-sm bg-[#0a0a0c] border-white/5">
-                    <div className="flex items-center gap-4 mb-4">
-                      <MessageCircle className="text-purple-400" size={24} />
-                      <h4 className="text-lg font-semibold text-white">Unique Visitors</h4>
+                      {/* Unique Visitors All-Time */}
+                      <div className="border rounded-3xl p-8 shadow-sm bg-[#0a0a0c] border-white/5">
+                        <div className="flex items-center gap-4 mb-4">
+                          <Settings size={24} style={{ color: '#f59e0b' }} />
+                          <h4 className="text-lg font-semibold text-white">Unique All-Time</h4>
+                        </div>
+                        <p className="text-3xl font-bold text-amber-500">{visitorStats.unique.toLocaleString()}</p>
+                        <p className="text-sm text-zinc-500 mt-2">Unique IP addresses</p>
+                      </div>
+
+                      {/* Unique Today */}
+                      <div className="border rounded-3xl p-8 shadow-sm bg-[#0a0a0c] border-white/5">
+                        <div className="flex items-center gap-4 mb-4">
+                          <MessageCircle className="text-purple-400" size={24} />
+                          <h4 className="text-lg font-semibold text-white">Unique Today</h4>
+                        </div>
+                        <p className="text-3xl font-bold text-purple-400">{visitorStats.todayUnique}</p>
+                        <p className="text-sm text-zinc-500 mt-2">Today's unique IPs</p>
+                      </div>
                     </div>
-                    <p className="text-3xl font-bold text-purple-400">{visitorStats.unique}</p>
-                    <p className="text-sm text-zinc-500 mt-2">Unique IP addresses</p>
-                  </div>
+
+                    {/* Info Box */}
+                    <div className="border rounded-3xl p-6 shadow-sm bg-blue-500/5 border-blue-500/20">
+                      <div className="flex gap-3">
+                        <div className="text-blue-400 mt-1">ℹ️</div>
+                        <div>
+                          <h5 className="text-sm font-semibold text-blue-300 mb-1">How tracking works</h5>
+                          <p className="text-sm text-blue-200">
+                            • <strong>Total Visits:</strong> Every page visit is counted<br/>
+                            • <strong>Unique Visitors:</strong> Each IP address counted once per 5 minutes<br/>
+                            • <strong>Today:</strong> Resets daily at midnight<br/>
+                            • Duplicate visits from same IP within 5 minutes are ignored to prevent inflation
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Reset Button */}
+                <div className="border rounded-3xl p-6 shadow-sm bg-amber-500/5 border-amber-500/20">
+                  <p className="text-sm text-amber-300 mb-4">💡 Want to start fresh with visitor tracking? Click the button below to reset all visitor data to 0.</p>
+                  <button 
+                    onClick={async () => {
+                      if (window.confirm('Are you sure you want to reset all visitor data? This cannot be undone.')) {
+                        try {
+                          await api.post('/visitors/reset');
+                          setVisitorStats({ total: 0, today: 0, unique: 0, todayUnique: 0, hasData: false });
+                          flashSave('✅ Visitor data reset successfully - starting fresh from 0');
+                        } catch (error) {
+                          flashSave('⚠️ Failed to reset visitor data: ' + (error.response?.data?.message || error.message));
+                        }
+                      }
+                    }}
+                    className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg transition-colors"
+                  >
+                    🔄 Reset Visitor Data
+                  </button>
                 </div>
               </div>
             )}

@@ -1,8 +1,14 @@
 const LeetCodeStats = require('../models/LeetCodeStats');
 const axios = require('axios');
 
-const fetchLeetCodeStats = async (username) => {
+const fetchLeetCodeStats = async (username, retries = 3) => {
   try {
+    if (!username || username.trim() === '') {
+      throw new Error('Username is required');
+    }
+    
+    const trimmedUsername = username.trim();
+    
     const query = `
       query getUserProfile($username: String!) {
         matchedUser(username: $username) {
@@ -40,20 +46,70 @@ const fetchLeetCodeStats = async (username) => {
       }
     `;
 
-    const response = await axios.post('https://leetcode.com/graphql', 
-      { query, variables: { username } },
-      { 
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 10000
-      }
-    );
+    let lastError = null;
+    let response = null;
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        response = await axios.post('https://leetcode.com/graphql', 
+          { query, variables: { username: trimmedUsername } },
+          { 
+            headers: { 
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Referer': 'https://leetcode.com/',
+              'Accept': '*/*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Origin': 'https://leetcode.com'
+            },
+            timeout: 15000
+          }
+        );
 
-    const data = response.data.data.matchedUser;
-    if (!data) throw new Error('User not found');
+        // Check for GraphQL errors
+        if (response.data.errors && response.data.errors.length > 0) {
+          console.warn(`LeetCode API GraphQL error on attempt ${attempt}:`, response.data.errors);
+          lastError = new Error(response.data.errors[0].message || 'GraphQL Error from LeetCode');
+          if (attempt < retries) {
+            console.log(`Retrying... (attempt ${attempt + 1}/${retries})`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            continue;
+          } else {
+            throw lastError;
+          }
+        }
+
+        const data = response.data.data?.matchedUser;
+        if (!data) {
+          throw new Error(`LeetCode user '${trimmedUsername}' not found. Please verify the username is correct (case-sensitive).`);
+        }
+        
+        // Success - break out of retry loop
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < retries && error.response?.status !== 404) {
+          console.log(`Retry attempt ${attempt + 1}/${retries} for username: ${trimmedUsername}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    if (lastError) throw lastError;
+    
+    // response is guaranteed to be defined here because we threw if all retries failed
+    const data = response.data.data?.matchedUser;
+    if (!data) {
+      throw new Error(`LeetCode user '${trimmedUsername}' not found. Please verify the username is correct (case-sensitive).`);
+    }
 
     // Check if submitStats exists
     if (!data.submitStats || !data.submitStats.acSubmissionNum) {
-      throw new Error('No submission stats available');
+      throw new Error('User has no submission stats available yet');
     }
 
     const acStats = data.submitStats.acSubmissionNum;
@@ -124,7 +180,7 @@ const fetchLeetCodeStats = async (username) => {
     return result;
   } catch (error) {
     console.error('LeetCode API error:', error.message);
-    return null;
+    throw error;
   }
 };
 
@@ -140,34 +196,39 @@ const getLeetCodeStats = async (req, res) => {
     const now = new Date();
 
     if (!stats || (stats.nextFetchTime && now > stats.nextFetchTime)) {
-      const freshStats = await fetchLeetCodeStats(username);
-      
-      if (freshStats) {
-        if (stats) {
-          stats.totalSolved = freshStats.totalSolved;
-          stats.easy = freshStats.easy;
-          stats.medium = freshStats.medium;
-          stats.hard = freshStats.hard;
-          stats.acceptanceRate = freshStats.acceptanceRate;
-          stats.ranking = freshStats.ranking;
-          stats.topPercentage = freshStats.topPercentage;
-          stats.languages = freshStats.languages;
-          stats.lastFetched = now;
-          stats.nextFetchTime = new Date(now.getTime() + 3600000);
-        } else {
-          stats = new LeetCodeStats({
-            username,
-            ...freshStats,
-            lastFetched: now,
-            nextFetchTime: new Date(now.getTime() + 3600000),
-          });
+      try {
+        const freshStats = await fetchLeetCodeStats(username);
+        
+        if (freshStats) {
+          if (stats) {
+            stats.totalSolved = freshStats.totalSolved;
+            stats.easy = freshStats.easy;
+            stats.medium = freshStats.medium;
+            stats.hard = freshStats.hard;
+            stats.acceptanceRate = freshStats.acceptanceRate;
+            stats.ranking = freshStats.ranking;
+            stats.topPercentage = freshStats.topPercentage;
+            stats.languages = freshStats.languages;
+            stats.lastFetched = now;
+            stats.nextFetchTime = new Date(now.getTime() + 3600000);
+          } else {
+            stats = new LeetCodeStats({
+              username,
+              ...freshStats,
+              lastFetched: now,
+              nextFetchTime: new Date(now.getTime() + 3600000),
+            });
+          }
+          await stats.save();
         }
-        await stats.save();
+      } catch (error) {
+        console.error('LeetCode fetch error:', error.message);
+        return res.status(400).json({ message: error.message });
       }
     }
 
     if (!stats) {
-      return res.status(404).json({ message: 'Could not fetch LeetCode stats' });
+      return res.status(404).json({ message: `No LeetCode data found for username '${username}'` });
     }
 
     res.json({

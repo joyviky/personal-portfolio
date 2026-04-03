@@ -32,6 +32,23 @@ const updateProfile = async (req, res) => {
   try {
     const { name, title, roles, bio, socials, headerText } = req.body;
 
+    // Input validation
+    if (name && typeof name !== 'string') {
+      return res.status(400).json({ message: 'Name must be a string' });
+    }
+    if (title && typeof title !== 'string') {
+      return res.status(400).json({ message: 'Title must be a string' });
+    }
+    if (roles && !Array.isArray(roles)) {
+      return res.status(400).json({ message: 'Roles must be an array' });
+    }
+    if (bio && typeof bio !== 'string') {
+      return res.status(400).json({ message: 'Bio must be a string' });
+    }
+    if (socials && typeof socials !== 'object') {
+      return res.status(400).json({ message: 'Socials must be an object' });
+    }
+
     let profile = await Profile.findOne();
 
     if (!profile) {
@@ -40,7 +57,7 @@ const updateProfile = async (req, res) => {
 
     if (name) profile.name = name;
     if (title) profile.title = title;
-    if (roles) profile.roles = roles;
+    if (roles && roles.length > 0) profile.roles = roles;
     if (bio) profile.bio = bio;
     if (socials) profile.socials = socials;
     if (headerText) profile.headerText = headerText;
@@ -66,6 +83,12 @@ const uploadResume = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Validate file type (only PDF and documents allowed - loose check)
+    const allowedMimeTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    if (!allowedMimeTypes.includes(req.file.mimetype) && !req.file.originalname.match(/\.(pdf|doc|docx|txt)$/i)) {
+      return res.status(400).json({ message: 'Only PDF, Word, and text files are allowed' });
     }
 
     let profile = await Profile.findOne();

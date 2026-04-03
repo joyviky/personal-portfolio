@@ -36,8 +36,8 @@ const seedData = async () => {
       bio: 'Crafting digital experiences that merge exceptional design with flawless engineering. I specialize in building scalable MERN stack applications with pixel-perfect user interfaces.',
       avatar: 'https://ui-avatars.com/api/?name=Vignesh&background=4f46e5&color=fff&size=256&font-size=0.4',
       socials: {
-        github: 'https://github.com',
-        linkedin: 'https://linkedin.com',
+        github: 'https://github.com/joyviky',
+        linkedin: 'https://www.linkedin.com/in/vignesh-t-a95bb1300',
         email: 'vignesh@example.com',
       },
       resumeUrl: '#',

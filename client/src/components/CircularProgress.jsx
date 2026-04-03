@@ -1,9 +1,11 @@
 import React from 'react';
 
-const CircularProgress = ({ percentage, color, label, value }) => {
+const CircularProgress = ({ percentage = 0, color, label, value }) => {
+  // Ensure percentage is a valid number
+  const validPercentage = !isNaN(percentage) && isFinite(percentage) ? Math.min(Math.max(percentage, 0), 100) : 0;
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const strokeDashoffset = circumference - (validPercentage / 100) * circumference;
 
   return (
     <div className="flex flex-col items-center">

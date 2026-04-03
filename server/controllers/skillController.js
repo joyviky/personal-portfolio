@@ -18,6 +18,17 @@ const createSkill = async (req, res) => {
       return res.status(400).json({ message: 'Name and category are required' });
     }
 
+    // Input validation
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ message: 'Name must be a non-empty string' });
+    }
+    if (!['Frontend', 'Backend', 'Database', 'Tools', 'Languages', 'Other'].includes(category)) {
+      return res.status(400).json({ message: 'Invalid category' });
+    }
+    if (level && !['Beginner', 'Intermediate', 'Advanced', 'Expert'].includes(level)) {
+      return res.status(400).json({ message: 'Invalid level' });
+    }
+
     const skill = new Skill({
       name,
       category,

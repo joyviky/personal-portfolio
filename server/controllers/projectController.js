@@ -18,16 +18,30 @@ const createProject = async (req, res) => {
       return res.status(400).json({ message: 'Title and description are required' });
     }
 
+    // Input validation
+    if (typeof title !== 'string' || title.trim().length === 0) {
+      return res.status(400).json({ message: 'Title must be a non-empty string' });
+    }
+    if (typeof description !== 'string' || description.trim().length === 0) {
+      return res.status(400).json({ message: 'Description must be a non-empty string' });
+    }
+    if (category && !['MERN', 'Frontend', 'Backend', 'Full Stack', 'Mobile', 'Other'].includes(category)) {
+      return res.status(400).json({ message: 'Invalid category' });
+    }
+    if (status && !['In Progress', 'Completed', 'Paused'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
     const project = new Project({
       title,
       description,
       shortDescription: shortDescription || '',
-      category: category || '',
-      tags: tags ? tags.split(',').map(t => t.trim()) : [],
+      category: category || 'Full Stack',
+      tags: tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : tags) : [],
       liveLink: liveLink || '',
       githubLink: githubLink || '',
       image: req.file ? (req.file.secure_url || req.file.path) : (req.body.image || ''),
-      featured: featured === 'true',
+      featured: featured === 'true' || featured === true,
       status: status || 'Completed',
     });
 
